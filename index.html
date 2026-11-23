@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>字形索引错位生成器</title>
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 引入寒蝉活宋体（HuoSong v1.000）、寒蝉活仿宋（HuoFangSong v0.100）及备用字体 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Noto+Serif+SC:wght@500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://fontsapi.zeoseven.com/875/main/result.css" />
+  <link rel="stylesheet" href="https://fontsapi.zeoseven.com/871/main/result.css" />
+  <script>
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              paper: '#F1EEE8',   // 稿纸底色
+              rule: '#D3CFC7',    // 栏线与次级底色
+              accent: '#A99A7C',  // 暖褐强调色
+              ink: '#39352F',     // 油墨主色
+            },
+            fontFamily: {
+              serif: ['"X Typewriter"', '"ChillHuoSong_F"', '"ChillHuoSong"', '"寒蝉活宋体"', '"Courier Prime"', '"Noto Serif SC"', 'serif'],
+              sans: ['"X Typewriter"', '"ChillHuoSong_F"', '"ChillHuoSong"', '"寒蝉活宋体"', '"Courier Prime"', '"Noto Serif SC"', 'sans-serif'],
+              mono: ['"X Typewriter"', '"Courier Prime"', '"ChillHuoSong_F"', 'ui-monospace', 'monospace'],
+              fangsong: ['"ChillHuoFangSong"', '"寒蝉活仿宋"', '"Noto Serif SC"', 'serif'],
+            },
+          },
+        },
+      };
+    }
+  </script>
+  <style>
+    /* 复古文稿录入风格全局样式 */
+    body {
+      background-color: #F1EEE8;
+      color: #39352F;
+      font-family: "X Typewriter", "ChillHuoSong_F", "ChillHuoSong", "寒蝉活宋体", "Courier Prime", "Noto Serif SC", serif;
+    }
+
+    /* 主标题逐字解码平滑过渡 */
+    .title-char {
+      display: inline-block;
+      transition: color 0.28s ease-out, opacity 0.28s ease-out;
+    }
+    .title-char.is-scrambling {
+      color: #A99A7C;
+      opacity: 0.78;
+    }
+
+    /* 全屏低透明度乱码字底纹（寒蝉活仿宋 HuoFangSong v0.100） */
+    #bg-garble-layer {
+      font-family: "ChillHuoFangSong", "寒蝉活仿宋", "Noto Serif SC", serif;
+      font-size: 14px;
+      line-height: 1.85;
+      letter-spacing: 0.32em;
+      color: #39352F;
+      opacity: 0.26;
+      word-break: break-all;
+      text-align: justify;
+    }
+
+    /* 印刷纸张质感主卷面（无毛玻璃，保留微透纸感与纤维肌理） */
+    .paper-sheet {
+      background-color: rgba(241, 238, 232, 0.84);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='paperGrain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.22  0 0 0 0 0.20  0 0 0 0 0.18  0 0 0 0.045 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23paperGrain)'/%3E%3C/svg%3E");
+      border: 1.5px solid rgba(57, 53, 47, 0.78);
+      box-shadow:
+        inset 0 0 0 3px rgba(241, 238, 232, 0.65),
+        inset 0 0 0 4px rgba(57, 53, 47, 0.28),
+        3px 4px 0 rgba(57, 53, 47, 0.12);
+    }
+
+    /* 问卷题框与印刷文本框 */
+    .q-section-box {
+      border: 1px solid rgba(57, 53, 47, 0.45);
+      background-color: rgba(241, 238, 232, 0.55);
+    }
+
+    .q-input-box {
+      border: 1px solid rgba(57, 53, 47, 0.65);
+      background-color: rgba(241, 238, 232, 0.68);
+      box-shadow: inset 1px 1px 0 rgba(57, 53, 47, 0.06);
+    }
+    .q-input-box:focus {
+      border-color: #39352F;
+      background-color: rgba(241, 238, 232, 0.88);
+      box-shadow: inset 0 0 0 1px #39352F;
+    }
+
+    /* 钢笔渗墨分隔线 */
+    .pen-rule-single {
+      height: 6px;
+      width: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='6' viewBox='0 0 900 6'%3E%3Cdefs%3E%3Cfilter id='ruleInk' x='-1%25' y='-50%25' width='102%25' height='200%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.12 0.6' numOctaves='2' seed='3' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='1.3' xChannelSelector='R' yChannelSelector='G' result='d'/%3E%3CfeGaussianBlur in='d' stdDeviation='0.45' result='b'/%3E%3CfeMerge%3E%3CfeMergeNode in='b'/%3E%3CfeMergeNode in='d'/%3E%3C/feMerge%3E%3C/defs%3E%3Cpath d='M 0 3.2 Q 225 2.4, 450 3.3 T 900 3.1' fill='none' stroke='%2339352F' stroke-opacity='0.48' stroke-width='1.2' filter='url(%23ruleInk)'/%3E%3C/svg%3E");
+      background-size: 900px 6px;
+      background-repeat: repeat-x;
+    }
+
+    .pen-rule-double {
+      height: 10px;
+      width: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='10' viewBox='0 0 900 10'%3E%3Cdefs%3E%3Cfilter id='doubleInk' x='-1%25' y='-40%25' width='102%25' height='180%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.11 0.55' numOctaves='2' seed='5' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='1.35' xChannelSelector='R' yChannelSelector='G' result='d'/%3E%3CfeGaussianBlur in='d' stdDeviation='0.45' result='b'/%3E%3CfeMerge%3E%3CfeMergeNode in='b'/%3E%3CfeMergeNode in='d'/%3E%3C/feMerge%3E%3C/filter%3E%3C/defs%3E%3Cg filter='url(%23doubleInk)'%3E%3Cpath d='M 0 2.6 Q 210 1.9, 450 2.8 T 900 2.5' fill='none' stroke='%2339352F' stroke-opacity='0.82' stroke-width='1.75'/%3E%3Cpath d='M 0 7.4 Q 240 8.1, 480 7.2 T 900 7.5' fill='none' stroke='%2339352F' stroke-opacity='0.52' stroke-width='0.95'/%3E%3C/g%3E%3C/svg%3E");
+      background-size: 900px 10px;
+      background-repeat: repeat-x;
+    }
+
+    /* 逐字校对表田字格（紧凑印刷尺寸） */
+    .tianzige {
+      position: relative;
+      width: 2.45rem;
+      height: 2.45rem;
+      border: 1.25px solid rgba(57, 53, 47, 0.85);
+      background-color: rgba(241, 238, 232, 0.82);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .tianzige::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      border-top: 1px dashed rgba(169, 154, 124, 0.82);
+      pointer-events: none;
+    }
+    .tianzige::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      border-left: 1px dashed rgba(169, 154, 124, 0.82);
+      pointer-events: none;
+    }
+    .tianzige-char {
+      position: relative;
+      z-index: 1;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #D3CFC7;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #A99A7C;
+    }
+
+    /* 印刷标尺风格偏移量滑块（纸墨四色，无默认蓝色） */
+    .offset-ruler-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+      height: 24px;
+      padding: 0 2px;
+      background-image:
+        linear-gradient(to right, transparent calc(50% - 0.75px), rgba(57, 53, 47, 0.75) calc(50% - 0.75px), rgba(57, 53, 47, 0.75) calc(50% + 0.75px), transparent calc(50% + 0.75px)),
+        repeating-linear-gradient(to right, rgba(57, 53, 47, 0.28) 0, rgba(57, 53, 47, 0.28) 1px, transparent 1px, transparent 10%);
+      background-size: 100% 12px, calc(100% - 14px) 6px;
+      background-position: center bottom 2px, center bottom 2px;
+      background-repeat: no-repeat;
+    }
+
+    input[type="range"].printed-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      accent-color: #39352F;
+      background: transparent;
+      width: 100%;
+      height: 24px;
+      margin: 0;
+      position: relative;
+      z-index: 1;
+    }
+    input[type="range"].printed-slider:focus {
+      outline: none;
+    }
+    input[type="range"].printed-slider::-webkit-slider-runnable-track {
+      height: 2px;
+      background: rgba(57, 53, 47, 0.55);
+      border: none;
+    }
+    input[type="range"].printed-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 18px;
+      margin-top: -8px;
+      border-radius: 1px;
+      background: #39352F;
+      border: 1.5px solid #F1EEE8;
+      box-shadow: 0 0 0 1px #39352F;
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.15s ease;
+    }
+    input[type="range"].printed-slider::-webkit-slider-thumb:hover,
+    input[type="range"].printed-slider:focus::-webkit-slider-thumb {
+      background: #A99A7C;
+      box-shadow: 0 0 0 1px #39352F;
+      transform: scaleY(1.08);
+    }
+    input[type="range"].printed-slider::-moz-range-track {
+      height: 2px;
+      background: rgba(57, 53, 47, 0.55);
+      border: none;
+    }
+    input[type="range"].printed-slider::-moz-range-thumb {
+      width: 12px;
+      height: 18px;
+      border-radius: 1px;
+      background: #39352F;
+      border: 1.5px solid #F1EEE8;
+      box-shadow: 0 0 0 1px #39352F;
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.15s ease;
+    }
+    input[type="range"].printed-slider::-moz-range-thumb:hover,
+    input[type="range"].printed-slider:focus::-moz-range-thumb {
+      background: #A99A7C;
+      box-shadow: 0 0 0 1px #39352F;
+    }
+  </style>
+</head>
+<body class="bg-paper text-ink min-h-screen antialiased selection:bg-accent/30 selection:text-ink relative overflow-x-hidden">
+
+  <!-- 全屏低透明度乱码字背景层（寒蝉活仿宋） -->
+  <div id="bg-garble-layer" aria-hidden="true" class="fixed inset-0 z-0 pointer-events-none select-none overflow-hidden px-3 py-2"></div>
+
+  <!-- 纸张印刷质感问卷主容器 -->
+  <div class="relative z-10 max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-9">
+    <div class="paper-sheet px-5 sm:px-8 lg:px-10 py-6 sm:py-8">
+
+    <!-- 卷首区 -->
+    <header class="pb-5">
+      <div class="flex items-center justify-between pb-3">
+        <div class="flex items-center gap-2 text-[11px] font-mono tracking-widest text-ink/70">
+          <span class="inline-block w-2.5 h-2.5 border border-ink bg-ink"></span>
+          <span>FORM · GID-01</span>
+        </div>
+        <button id="btn-help" type="button" class="inline-flex items-center gap-1.5 px-3 py-1 border border-ink/60 bg-paper/75 hover:bg-ink hover:text-paper text-ink text-xs font-medium transition-colors">
+          <span>[ ？排印原理 ]</span>
+        </button>
+      </div>
+
+      <div class="pen-rule-single"></div>
+
+      <!-- 主标题（纯汉字 Text Scramble 错位解码动效） -->
+      <div class="py-4 sm:py-5 flex flex-wrap items-baseline justify-between gap-4">
+        <h1 id="scramble-title" title="点击重播乱码解码动效" class="font-serif text-3xl sm:text-4xl lg:text-[42px] font-black tracking-[0.06em] leading-tight text-ink cursor-pointer select-none">
+          字形索引错位生成器
+        </h1>
+      </div>
+
+      <!-- 钢笔渗墨双线 -->
+      <div class="pen-rule-double"></div>
+    </header>
+
+    <!-- 问卷主体版面 -->
+    <main class="space-y-6">
+
+      <!-- 题目一 & 二：错位方式与参数设定 -->
+      <section class="q-section-box p-4 sm:p-5 space-y-4">
+
+        <!-- 题目一：模式选择 -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-dashed border-ink/35">
+          <div class="text-sm font-serif font-bold tracking-wide text-ink">
+            一、选择错位方式
+          </div>
+          <div class="inline-flex border border-ink/65 bg-paper/75 w-full sm:w-auto divide-x divide-ink/40">
+            <button data-mode="sim-gid" class="mode-tab flex-1 sm:flex-initial px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors bg-ink text-paper inline-flex items-center justify-center gap-1.5">
+              <span class="mode-check font-mono">■</span>
+              <span>Ⅰ. 内置 GID 错位表</span>
+            </button>
+            <button data-mode="mojibake" class="mode-tab flex-1 sm:flex-initial px-4 py-1.5 text-xs sm:text-sm font-semibold transition-colors text-ink/80 hover:text-ink inline-flex items-center justify-center gap-1.5">
+              <span class="mode-check font-mono">□</span>
+              <span>Ⅱ. 编码乱码（锟斤拷 / GBK）</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 题目二：参数设定（内置 GID 表） -->
+        <div id="panel-sim-gid" class="space-y-4">
+          <div class="text-sm font-serif font-bold tracking-wide text-ink">
+            二、设定索引表与偏移参数
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div class="md:col-span-5 space-y-1.5">
+              <label for="sim-table-type" class="block text-[11px] font-mono tracking-wider text-ink/75">1. 字形索引表类型</label>
+              <select id="sim-table-type" class="w-full border border-ink/50 bg-paper/80 px-2.5 py-1.5 text-sm font-medium text-ink focus:outline-none focus:border-ink transition-colors">
+                <option value="cid-like">仿字体 CID/GID 乱序表</option>
+                <option value="unicode-seq">Unicode 顺序字形表（U+4E00 起顺序偏移）</option>
+                <option value="custom-seed">自定义种子 GID 映射表（可逆密文）</option>
+              </select>
+            </div>
+
+            <div id="seed-container" class="md:col-span-2 space-y-1.5 hidden">
+              <label for="sim-seed" class="block text-[11px] font-mono tracking-wider text-ink/75">2. 种子 (Seed)</label>
+              <input id="sim-seed" type="number" value="2026" class="w-full border border-ink/50 bg-paper/80 px-2.5 py-1.5 text-sm font-mono text-ink focus:outline-none focus:border-ink transition-colors" />
+            </div>
+
+            <div class="md:col-span-5 flex flex-wrap items-center gap-5 pb-1.5">
+              <label class="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input id="opt-keep-ascii" type="checkbox" checked class="w-4 h-4 accent-[#39352F] border-ink/50 cursor-pointer" />
+                <span>保留英文/数字/标点</span>
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input id="opt-reverse" type="checkbox" class="w-4 h-4 accent-[#A99A7C] border-ink/50 cursor-pointer" />
+                <span class="font-medium text-ink">反向还原 (-Δ)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- 题目二：编码乱码选项 -->
+        <div id="panel-mojibake" class="hidden space-y-3">
+          <div class="text-sm font-serif font-bold tracking-wide text-ink">
+            二、选择编码错配类型
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button type="button" data-moji="utf8-to-gbk" class="moji-btn text-left p-3 border border-ink bg-paper/85 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-serif font-bold text-ink"><span class="moji-check font-mono mr-1">■</span>UTF-8 → GBK 错位</span>
+                <span class="moji-badge text-[10px] font-mono px-1.5 py-0.5 bg-ink text-paper">古文风</span>
+              </div>
+              <p class="text-xs text-ink/75 mt-1">以 GBK 强行解码 UTF-8 字节流（如“你好”→“浣犲ソ”）</p>
+            </button>
+
+            <button type="button" data-moji="kunjinkao" class="moji-btn text-left p-3 border border-ink/35 hover:border-ink bg-paper/50 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-serif font-bold text-ink"><span class="moji-check font-mono mr-1">□</span>经典“锟斤拷”污染</span>
+                <span class="moji-badge text-[10px] font-mono px-1.5 py-0.5 bg-rule/80 text-ink">U+FFFD</span>
+              </div>
+              <p class="text-xs text-ink/75 mt-1">模拟替换符 EF BF BD 经 GBK 解码生成的“锟斤拷”</p>
+            </button>
+
+            <button type="button" data-moji="utf8-to-latin1" class="moji-btn text-left p-3 border border-ink/35 hover:border-ink bg-paper/50 transition-colors">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-serif font-bold text-ink"><span class="moji-check font-mono mr-1">□</span>UTF-8 → Latin-1</span>
+                <span class="moji-badge text-[10px] font-mono px-1.5 py-0.5 bg-rule/80 text-ink">西欧乱码</span>
+              </div>
+              <p class="text-xs text-ink/75 mt-1">模拟网页编码错配（如“你好”→“ä½ å¥½”）</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- GID 偏移量微调条（内置 GID 模式显示） -->
+        <div id="offset-control-bar" class="pt-3.5 border-t border-dashed border-ink/35 flex flex-col lg:flex-row lg:items-center gap-4">
+          <div class="flex items-center gap-2.5 shrink-0">
+            <span class="text-xs font-mono tracking-wider text-ink/80">3. GID 偏移量 (Δ)</span>
+            <span id="effective-offset-badge" class="px-2 py-0.5 text-xs font-mono font-semibold bg-accent/25 text-ink border border-ink/40">+1</span>
+          </div>
+
+          <div class="flex-1 flex items-center">
+            <div class="offset-ruler-wrap" title="中心刻度为 0 偏移">
+              <input id="offset-slider" type="range" min="-200" max="200" value="1" class="printed-slider cursor-pointer" />
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="btn-step-minus" type="button" aria-label="减少偏移量" class="w-8 h-8 border border-ink/50 bg-paper/80 hover:bg-ink hover:text-paper font-mono text-base font-bold leading-none transition-colors">-</button>
+            <input id="offset-input" type="number" value="1" class="w-24 h-8 text-center border border-ink/65 bg-paper/85 font-mono text-sm font-semibold text-ink focus:outline-none focus:border-ink" />
+            <button id="btn-step-plus" type="button" aria-label="增加偏移量" class="w-8 h-8 border border-ink/50 bg-paper/80 hover:bg-ink hover:text-paper font-mono text-base font-bold leading-none transition-colors">+</button>
+            <button id="btn-random-offset" type="button" class="px-3 h-8 border border-ink/50 bg-paper/80 hover:bg-accent/25 text-xs font-medium transition-colors">随机偏移</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 题目三：双栏方框矩形录入区 -->
+      <section class="q-section-box p-4 sm:p-5 space-y-4">
+        <div class="text-sm font-serif font-bold tracking-wide text-ink pb-2 border-b border-dashed border-ink/35">
+          三、文稿录入与错位印样
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6">
+          <!-- 左栏：原稿录入 -->
+          <div class="lg:col-span-6 flex flex-col">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2">
+              <div class="flex items-center gap-2.5">
+                <h2 class="font-serif text-sm font-bold text-ink tracking-wide">（1）原稿录入</h2>
+                <span id="input-count" class="text-xs font-mono text-ink/65">0 字</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button id="btn-clear" type="button" class="px-2.5 py-0.5 border border-ink/35 bg-paper/70 text-xs font-medium text-ink/80 hover:text-ink hover:border-ink transition-colors">清空</button>
+              </div>
+            </div>
+
+            <textarea id="input-text" rows="6" placeholder="在此录入需要错位排印的文稿..." class="q-input-box w-full flex-1 p-3.5 focus:outline-none text-base leading-relaxed tracking-wide text-ink placeholder:text-ink/40 resize-y transition-colors">滚滚长江东逝水</textarea>
+          </div>
+
+          <!-- 右栏：错位印样 -->
+          <div class="lg:col-span-6 flex flex-col">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2">
+              <div class="flex items-center gap-2.5">
+                <h2 class="font-serif text-sm font-bold text-ink tracking-wide">（2）错位印样</h2>
+                <span id="output-count" class="text-xs font-mono text-ink/65">0 字</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button id="btn-swap-decode" type="button" title="将结果放回原稿并反转偏移，验证可逆性" class="inline-flex items-center gap-1 px-2.5 py-0.5 border border-ink/45 bg-paper/75 hover:border-ink hover:bg-rule/50 text-xs font-medium transition-colors">
+                  <svg class="w-3.5 h-3.5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>反向校对</span>
+                </button>
+                <button id="btn-copy" type="button" class="inline-flex items-center gap-1 px-3 py-0.5 border border-ink bg-ink text-paper hover:bg-ink/85 text-xs font-semibold transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>复制印样</span>
+                </button>
+              </div>
+            </div>
+
+            <textarea id="output-text" rows="6" readonly placeholder="错位后的文字将在此实时生成..." class="q-input-box w-full flex-1 p-3.5 focus:outline-none text-base leading-relaxed tracking-wide font-medium text-ink resize-y"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <!-- 题目四：逐字索引校对表（紧凑田字格多列排布） -->
+      <section class="q-section-box p-4 sm:p-5 space-y-3.5">
+        <div class="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-dashed border-ink/35">
+          <div class="flex items-center gap-2.5">
+            <h2 class="font-serif text-sm font-bold text-ink tracking-wide">四、逐字索引校对表</h2>
+            <span id="inspector-badge" class="px-2 py-0.5 text-[11px] font-mono bg-paper/80 border border-ink/35 text-ink/85">共 0 条</span>
+          </div>
+          <label class="inline-flex items-center gap-2 text-xs text-ink/85 cursor-pointer select-none">
+            <input id="opt-inspector-changed-only" type="checkbox" checked class="w-3.5 h-3.5 accent-[#39352F] border-ink/50 cursor-pointer" />
+            <span>仅显示发生错位的字</span>
+          </label>
+        </div>
+
+        <div id="inspector-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 max-h-[420px] overflow-y-auto pr-1 pt-0.5">
+          <!-- 动态渲染紧凑田字格校对条目 -->
+        </div>
+      </section>
+    </main>
+    </div>
+  </div>
+
+  <!-- 排印原理弹窗 -->
+  <div id="help-modal" class="hidden fixed inset-0 z-50 items-center justify-center bg-ink/50 p-4">
+    <div class="relative w-full max-w-lg border border-ink/40 bg-paper text-ink shadow-2xl p-6 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-ink/25">
+        <h3 class="font-serif text-lg font-bold tracking-wide">排印原理说明</h3>
+        <button id="btn-close-help" type="button" aria-label="关闭" class="p-1.5 text-ink/60 hover:text-ink hover:bg-rule/50 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-3 text-sm leading-relaxed text-ink/85">
+        <p><strong class="text-ink">Ⅰ. 字形索引（GID）错位：</strong>字体文件内部通过字符编码（Unicode）映射到字形编号（Glyph ID）。当排印或文档子集嵌入过程中发生索引偏移（ΔGID）时，原本的汉字会指向字库中另一个位置的字形，形成表面看似正常汉字、语义却完全错乱的文本。</p>
+        <p><strong class="text-ink">Ⅱ. 编码错配（锟斤拷 / GBK）：</strong>当以 UTF-8 编码保存的字节流被错误地用 GBK 或 Latin-1 解码，或遇到无法识别字符被替换为 <span class="font-mono text-xs px-1 py-0.5 bg-rule/60">U+FFFD (EF BF BD)</span> 后再以 GBK 强行读取时，便会批量出现“锟斤拷”等经典乱码。</p>
+      </div>
+      <div class="pt-3 border-t border-ink/25 flex justify-end">
+        <button id="btn-ok-help" type="button" class="px-4 py-1.5 text-xs font-semibold bg-ink text-paper hover:bg-ink/85 transition-colors">
+          知悉关闭
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 悬浮 Toast 提示 -->
+  <div id="toast-container" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col gap-2 items-center"></div>
+
+  <script>
+    /**
+     * 字形索引（GID）错位工坊 - 核心逻辑
+     * 1. 内置 20,902 基本汉字可逆双射 GID 映射表（支持默认“双→熥”、“纵→歬”以及任意偏移与自定义种子）
+     * 2. 原生 TextEncoder / TextDecoder 实现的 UTF-8 ↔ GBK / 锟斤拷 / Latin-1 乱码模拟
+     */
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. 常量与全局状态
+      // =========================================================================
+      const CJK_START = 0x4E00; // 19968
+      const CJK_END = 0x9FA5;   // 40869
+      const CJK_COUNT = CJK_END - CJK_START + 1; // 20,902 个基本汉字
+
+      const state = {
+        mode: 'sim-gid',           // 'sim-gid' | 'mojibake'
+        simTableType: 'cid-like',  // 'cid-like' | 'unicode-seq' | 'custom-seed'
+        simSeed: 2026,
+        keepAscii: true,
+        reverse: false,
+        mojiType: 'utf8-to-gbk',   // 'utf8-to-gbk' | 'kunjinkao' | 'utf8-to-latin1'
+        offset: 1,
+        inspectorChangedOnly: true,
+      };
+
+      // 缓存已生成的映射表，避免拖动滑块时重复计算
+      const tableCache = new Map();
+
+      // 复用编解码器实例，避免每次输入重复创建
+      const utf8Encoder = new TextEncoder();
+      let gbkDecoder = null;
+      try {
+        gbkDecoder = new TextDecoder('gbk', { fatal: false });
+      } catch (e) {
+        gbkDecoder = null;
+      }
+
+      // =========================================================================
+      // 2. DOM 元素引用
+      // =========================================================================
+      const el = {
+        bgGarbleLayer: document.getElementById('bg-garble-layer'),
+        scrambleTitle: document.getElementById('scramble-title'),
+        modeTabs: document.querySelectorAll('.mode-tab'),
+        panelSimGid: document.getElementById('panel-sim-gid'),
+        panelMojibake: document.getElementById('panel-mojibake'),
+        simTableType: document.getElementById('sim-table-type'),
+        seedContainer: document.getElementById('seed-container'),
+        simSeed: document.getElementById('sim-seed'),
+        optKeepAscii: document.getElementById('opt-keep-ascii'),
+        optReverse: document.getElementById('opt-reverse'),
+        mojiBtns: document.querySelectorAll('.moji-btn'),
+        offsetControlBar: document.getElementById('offset-control-bar'),
+        effectiveOffsetBadge: document.getElementById('effective-offset-badge'),
+        offsetSlider: document.getElementById('offset-slider'),
+        offsetInput: document.getElementById('offset-input'),
+        btnStepMinus: document.getElementById('btn-step-minus'),
+        btnStepPlus: document.getElementById('btn-step-plus'),
+        btnRandomOffset: document.getElementById('btn-random-offset'),
+        inputText: document.getElementById('input-text'),
+        inputCount: document.getElementById('input-count'),
+        btnClear: document.getElementById('btn-clear'),
+        outputText: document.getElementById('output-text'),
+        outputCount: document.getElementById('output-count'),
+        btnSwapDecode: document.getElementById('btn-swap-decode'),
+        btnCopy: document.getElementById('btn-copy'),
+        inspectorBadge: document.getElementById('inspector-badge'),
+        optInspectorChangedOnly: document.getElementById('opt-inspector-changed-only'),
+        inspectorGrid: document.getElementById('inspector-grid'),
+        btnHelp: document.getElementById('btn-help'),
+        helpModal: document.getElementById('help-modal'),
+        btnCloseHelp: document.getElementById('btn-close-help'),
+        btnOkHelp: document.getElementById('btn-ok-help'),
+        toastContainer: document.getElementById('toast-container'),
+      };
+
+      // =========================================================================
+      // 3. 工具函数（转义、剪贴板、提示、背景乱码、标题解码动效）
+      // =========================================================================
+      function formatCodePoint(cp) {
+        if (typeof cp !== 'number' || Number.isNaN(cp)) return 'U+0000';
+        return 'U+' + cp.toString(16).toUpperCase().padStart(4, '0');
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function showToast(message, type = 'info') {
+        if (!el.toastContainer) return;
+        const toast = document.createElement('div');
+        const accentBorder = type === 'error' ? 'border-red-800/60' : 'border-ink/40';
+        toast.className = `px-4 py-2 rounded border ${accentBorder} bg-ink text-paper text-xs font-medium shadow-lg transition-all duration-200 opacity-0 translate-y-2`;
+        toast.textContent = message;
+        el.toastContainer.appendChild(toast);
+
+        requestAnimationFrame(() => {
+          toast.classList.remove('opacity-0', 'translate-y-2');
+        });
+
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 220);
+        }, 2200);
+      }
+
+      function copyToClipboard(text) {
+        if (!text) {
+          showToast('当前印样为空，无可复制内容', 'error');
+          return;
+        }
+        try {
+          const tempArea = document.createElement('textarea');
+          tempArea.value = text;
+          tempArea.setAttribute('readonly', '');
+          tempArea.style.position = 'fixed';
+          tempArea.style.left = '-9999px';
+          document.body.appendChild(tempArea);
+          tempArea.select();
+          const ok = document.execCommand('copy');
+          document.body.removeChild(tempArea);
+          if (ok) {
+            showToast('已复制错位印样到剪贴板', 'info');
+          } else {
+            showToast('复制失败，请手动选中文本复制', 'error');
+          }
+        } catch (err) {
+          showToast('复制失败，请手动选中文本复制', 'error');
+        }
+      }
+
+      // 渲染铺满全屏的低透明度寒蝉活仿宋乱码字背景，并支持定时 Text Scramble 刷新
+      let bgChars = [];
+      let bgScrambleRafId = null;
+
+      function randomCjkChar() {
+        const cp = CJK_START + Math.floor(Math.random() * CJK_COUNT);
+        return String.fromCodePoint(cp);
+      }
+
+      function renderBackgroundGarble() {
+        if (!el.bgGarbleLayer) return;
+        const cols = Math.ceil(window.innerWidth / 16) + 4;
+        const rows = Math.ceil(window.innerHeight / 24) + 4;
+        const total = Math.min(cols * rows, 6500);
+        bgChars = new Array(total);
+        for (let i = 0; i < total; i++) {
+          bgChars[i] = randomCjkChar();
+        }
+        el.bgGarbleLayer.textContent = bgChars.join('');
+      }
+
+      function triggerBackgroundScramble() {
+        if (!el.bgGarbleLayer || bgChars.length === 0 || document.hidden) return;
+        if (bgScrambleRafId) {
+          cancelAnimationFrame(bgScrambleRafId);
+        }
+
+        const total = bgChars.length;
+        // 选取若干随机波段进行错位解码替换
+        const targets = new Map();
+        const clusterCount = 12;
+        const duration = 900;
+        for (let c = 0; c < clusterCount; c++) {
+          const start = Math.floor(Math.random() * total);
+          const span = 40 + Math.floor(Math.random() * 85);
+          for (let offset = 0; offset < span; offset++) {
+            const idx = (start + offset) % total;
+            if (!targets.has(idx)) {
+              targets.set(idx, {
+                targetChar: randomCjkChar(),
+                lockAt: 220 + (offset / span) * (duration - 220),
+              });
+            }
+          }
+        }
+
+        const activeIndices = Array.from(targets.keys());
+        const startTime = performance.now();
+        let lastTick = 0;
+
+        function step(now) {
+          const elapsed = now - startTime;
+          // 约 45ms 节流更新，兼顾流畅度与低 CPU 占用
+          if (elapsed - lastTick >= 45 || elapsed >= duration) {
+            lastTick = elapsed;
+            for (let i = 0; i < activeIndices.length; i++) {
+              const idx = activeIndices[i];
+              const info = targets.get(idx);
+              bgChars[idx] = (elapsed >= info.lockAt || elapsed >= duration)
+                ? info.targetChar
+                : randomCjkChar();
+            }
+            el.bgGarbleLayer.textContent = bgChars.join('');
+          }
+
+          if (elapsed < duration) {
+            bgScrambleRafId = requestAnimationFrame(step);
+          } else {
+            bgScrambleRafId = null;
+          }
+        }
+
+        bgScrambleRafId = requestAnimationFrame(step);
+      }
+
+      // 纯中文汉字 Text Scramble 错位解码动效（基于时间戳、缓动交错定格与减速翻字）
+      const TITLE_TEXT = '字形索引错位生成器';
+      const TITLE_CHARS = Array.from(TITLE_TEXT);
+      let titleSpans = [];
+      let scrambleRafId = null;
+
+      function initTitleSpans() {
+        if (!el.scrambleTitle || titleSpans.length > 0) return;
+        el.scrambleTitle.textContent = '';
+        const frag = document.createDocumentFragment();
+        titleSpans = TITLE_CHARS.map((ch) => {
+          const span = document.createElement('span');
+          span.className = 'title-char';
+          span.textContent = ch;
+          frag.appendChild(span);
+          return span;
+        });
+        el.scrambleTitle.appendChild(frag);
+      }
+
+      function runTitleScramble() {
+        if (!el.scrambleTitle) return;
+        initTitleSpans();
+        if (scrambleRafId) {
+          cancelAnimationFrame(scrambleRafId);
+        }
+
+        const startTime = performance.now();
+        // 为每个字分配渐进式缓动定格时间，形成如活字逐一落位的丝滑节奏
+        const charPlans = TITLE_CHARS.map((targetChar, idx) => {
+          const ratio = idx / Math.max(1, TITLE_CHARS.length - 1);
+          const eased = 1 - Math.pow(1 - ratio, 1.65);
+          const lockAt = 340 + eased * 820; // 首字 340ms 起定格，末字约 1160ms 定格
+          return {
+            targetChar,
+            lockAt,
+            settled: false,
+            nextSwapAt: 0,
+          };
+        });
+
+        // 初始全部置为纯汉字乱码状态
+        for (let i = 0; i < titleSpans.length; i++) {
+          titleSpans[i].textContent = randomCjkChar();
+          titleSpans[i].classList.add('is-scrambling');
+        }
+
+        function step(now) {
+          const elapsed = now - startTime;
+          let allSettled = true;
+
+          for (let i = 0; i < charPlans.length; i++) {
+            const plan = charPlans[i];
+            if (plan.settled) continue;
+
+            if (elapsed >= plan.lockAt) {
+              plan.settled = true;
+              titleSpans[i].textContent = plan.targetChar;
+              titleSpans[i].classList.remove('is-scrambling');
+            } else {
+              allSettled = false;
+              if (elapsed >= plan.nextSwapAt) {
+                titleSpans[i].textContent = randomCjkChar();
+                // 越接近定格时刻，翻字间隔越平缓（从 ~38ms 渐变至 ~105ms）
+                const progress = Math.min(1, elapsed / plan.lockAt);
+                const interval = 38 + progress * progress * 67;
+                plan.nextSwapAt = elapsed + interval;
+              }
+            }
+          }
+
+          if (!allSettled) {
+            scrambleRafId = requestAnimationFrame(step);
+          } else {
+            scrambleRafId = null;
+          }
+        }
+
+        scrambleRafId = requestAnimationFrame(step);
+      }
+
+      // =========================================================================
+      // 4. 可逆 GID 映射表构建（覆盖 20,902 基本汉字）
+      // =========================================================================
+      function buildBijectionTable(type, seedVal) {
+        const key = type === 'custom-seed' ? `seed:${seedVal}` : type;
+        if (tableCache.has(key)) {
+          return tableCache.get(key);
+        }
+
+        const gidToCjk = new Uint16Array(CJK_COUNT);
+        const cjkToGid = new Uint16Array(CJK_COUNT);
+
+        for (let i = 0; i < CJK_COUNT; i++) {
+          gidToCjk[i] = i;
+        }
+
+        if (type !== 'unicode-seq') {
+          let s = (type === 'cid-like' ? 19840517 : (seedVal >>> 0)) || 1;
+          for (let i = CJK_COUNT - 1; i > 0; i--) {
+            s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+            const j = s % (i + 1);
+            const tmp = gidToCjk[i];
+            gidToCjk[i] = gidToCjk[j];
+            gidToCjk[j] = tmp;
+          }
+        }
+
+        for (let gid = 0; gid < CJK_COUNT; gid++) {
+          cjkToGid[gidToCjk[gid]] = gid;
+        }
+
+        // 在默认仿 CID/GID 表中锚定经典邻接关系（Δ=+1 时 “双”→“熥”、“纵”→“歬”）
+        if (type === 'cid-like') {
+          const anchorPairs = [
+            [0x53CC - CJK_START, 0x71A5 - CJK_START], // 双 -> 熥
+            [0x7EB5 - CJK_START, 0x6B6C - CJK_START], // 纵 -> 歬
+          ];
+          for (const [srcIdx, dstIdx] of anchorPairs) {
+            const srcGid = cjkToGid[srcIdx];
+            const nextGid = (srcGid + 1) % CJK_COUNT;
+            const curDstGid = cjkToGid[dstIdx];
+            if (curDstGid !== nextGid) {
+              const displacedCjk = gidToCjk[nextGid];
+              gidToCjk[nextGid] = dstIdx;
+              gidToCjk[curDstGid] = displacedCjk;
+              cjkToGid[dstIdx] = nextGid;
+              cjkToGid[displacedCjk] = curDstGid;
+            }
+          }
+        }
+
+        const result = { gidToCjk, cjkToGid };
+        if (tableCache.size > 16) {
+          tableCache.clear();
+        }
+        tableCache.set(key, result);
+        return result;
+      }
+
+      // =========================================================================
+      // 5. 文本错位处理引擎（GID 错位 & 编码乱码）
+      // =========================================================================
+      function transformGidMode(text) {
+        const { gidToCjk, cjkToGid } = buildBijectionTable(state.simTableType, state.simSeed);
+        const effectiveDelta = state.reverse ? -state.offset : state.offset;
+        const signStr = effectiveDelta >= 0 ? `+${effectiveDelta}` : `${effectiveDelta}`;
+        if (el.effectiveOffsetBadge) {
+          el.effectiveOffsetBadge.textContent = signStr;
+        }
+
+        const records = [];
+        const outChars = [];
+
+        for (const ch of text) {
+          const cp = ch.codePointAt(0);
+          if (cp >= CJK_START && cp <= CJK_END) {
+            const cjkIdx = cp - CJK_START;
+            const srcGid = cjkToGid[cjkIdx];
+            const dstGid = (((srcGid + effectiveDelta) % CJK_COUNT) + CJK_COUNT) % CJK_COUNT;
+            const dstCp = CJK_START + gidToCjk[dstGid];
+            const dstChar = String.fromCodePoint(dstCp);
+
+            outChars.push(dstChar);
+            records.push({
+              srcChar: ch,
+              dstChar,
+              srcCode: formatCodePoint(cp),
+              dstCode: formatCodePoint(dstCp),
+              srcGid: `GID #${srcGid + 1}`,
+              dstGid: `GID #${dstGid + 1}`,
+              changed: ch !== dstChar,
+            });
+          } else if (!state.keepAscii && cp >= 0x21 && cp <= 0x7E) {
+            const asciiSpan = 94; // 0x21..0x7E
+            const shifted = 0x21 + ((((cp - 0x21 + effectiveDelta) % asciiSpan) + asciiSpan) % asciiSpan);
+            const dstChar = String.fromCodePoint(shifted);
+            outChars.push(dstChar);
+            records.push({
+              srcChar: ch,
+              dstChar,
+              srcCode: formatCodePoint(cp),
+              dstCode: formatCodePoint(shifted),
+              srcGid: `ASC #${cp - 0x20}`,
+              dstGid: `ASC #${shifted - 0x20}`,
+              changed: ch !== dstChar,
+            });
+          } else {
+            outChars.push(ch);
+            records.push({
+              srcChar: ch,
+              dstChar: ch,
+              srcCode: formatCodePoint(cp),
+              dstCode: formatCodePoint(cp),
+              srcGid: '保留原位',
+              dstGid: '未偏移',
+              changed: false,
+            });
+          }
+        }
+
+        return { output: outChars.join(''), records };
+      }
+
+      function transformMojibakeMode(text) {
+        const records = [];
+        const outChars = [];
+
+        for (const ch of text) {
+          const cp = ch.codePointAt(0);
+          const utf8Bytes = utf8Encoder.encode(ch);
+          let dstSegment = ch;
+
+          if (state.mojiType === 'utf8-to-gbk') {
+            if (cp > 0x7F && gbkDecoder) {
+              dstSegment = gbkDecoder.decode(utf8Bytes);
+            }
+          } else if (state.mojiType === 'kunjinkao') {
+            if (cp > 0x7F) {
+              // 模拟 UTF-8 非法字节被替换为 U+FFFD (EF BF BD) 后再按 GBK 解码成“锟斤拷”
+              const fffdBytes = new Uint8Array([0xEF, 0xBF, 0xBD, 0xEF, 0xBF, 0xBD]);
+              dstSegment = gbkDecoder ? gbkDecoder.decode(fffdBytes) : '锟斤拷';
+            }
+          } else if (state.mojiType === 'utf8-to-latin1') {
+            if (cp > 0x7F) {
+              dstSegment = Array.from(utf8Bytes).map((b) => String.fromCharCode(b)).join('');
+            }
+          }
+
+          outChars.push(dstSegment);
+          const firstDstCp = dstSegment.codePointAt(0) || cp;
+          const hexBytes = Array.from(utf8Bytes)
+            .map((b) => b.toString(16).toUpperCase().padStart(2, '0'))
+            .join(' ');
+
+          records.push({
+            srcChar: ch,
+            dstChar: Array.from(dstSegment)[0] || ch,
+            srcCode: formatCodePoint(cp),
+            dstCode: formatCodePoint(firstDstCp),
+            srcGid: `UTF8[${hexBytes}]`,
+            dstGid: state.mojiType === 'utf8-to-latin1' ? 'Latin-1' : 'GBK解码',
+            changed: ch !== dstSegment,
+          });
+        }
+
+        return { output: outChars.join(''), records };
+      }
+
+      function processText() {
+        if (!el.inputText || !el.outputText) return;
+        const rawText = el.inputText.value;
+        const { output, records } = state.mode === 'sim-gid'
+          ? transformGidMode(rawText)
+          : transformMojibakeMode(rawText);
+
+        el.outputText.value = output;
+        if (el.inputCount) {
+          el.inputCount.textContent = `${Array.from(rawText).length} 字`;
+        }
+        if (el.outputCount) {
+          el.outputCount.textContent = `${Array.from(output).length} 字`;
+        }
+        renderInspector(records);
+      }
+
+      // =========================================================================
+      // 6. 渲染逐字索引校对表（单个字田字格美化）
+      // =========================================================================
+      function renderInspector(records) {
+        const filtered = state.inspectorChangedOnly
+          ? records.filter((r) => r.changed)
+          : records;
+
+        const maxItems = 60;
+        const slice = filtered.slice(0, maxItems);
+        el.inspectorBadge.textContent = filtered.length > maxItems
+          ? `前 ${maxItems} / 共 ${filtered.length} 条`
+          : `共 ${filtered.length} 条`;
+
+        if (slice.length === 0) {
+          el.inspectorGrid.innerHTML = `
+            <div class="col-span-full py-10 text-center text-sm text-ink/55 border-b border-dashed border-ink/30">
+              暂无校对记录——请在上方原稿栏输入汉字或调整偏移量
+            </div>`;
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const item of slice) {
+          const card = document.createElement('div');
+          card.className = `p-2 border border-ink/35 bg-paper/75 hover:border-ink transition-colors ${
+            item.changed ? 'opacity-100' : 'opacity-65'
+          }`;
+
+          const displaySrc = item.srcChar === '\n' ? '↵' : item.srcChar === ' ' ? '␣' : item.srcChar;
+          const displayDst = item.dstChar === '\n' ? '↵' : item.dstChar === ' ' ? '␣' : item.dstChar;
+
+          card.innerHTML = `
+            <div class="flex items-center justify-center gap-1.5 pb-1.5">
+              <div class="tianzige">
+                <span class="tianzige-char font-serif text-xl font-bold leading-none text-ink">${escapeHtml(displaySrc)}</span>
+              </div>
+              <span class="text-xs font-mono text-accent font-bold shrink-0">→</span>
+              <div class="tianzige">
+                <span class="tianzige-char font-serif text-xl font-bold leading-none text-ink">${escapeHtml(displayDst)}</span>
+              </div>
+            </div>
+            <div class="pt-1 border-t border-dashed border-ink/25 flex items-center justify-between text-[10px] font-mono text-ink/80">
+              <span class="truncate">${item.srcGid}</span>
+              <span class="text-accent font-semibold truncate">${item.dstGid}</span>
+            </div>
+            <div class="flex items-center justify-between text-[9px] font-mono text-ink/55 mt-0.5">
+              <span>${item.srcCode}</span>
+              <span>${item.dstCode}</span>
+            </div>
+          `;
+          fragment.appendChild(card);
+        }
+
+        el.inspectorGrid.innerHTML = '';
+        el.inspectorGrid.appendChild(fragment);
+      }
+
+      // =========================================================================
+      // 7. 交互状态与事件绑定
+      // =========================================================================
+      function switchMode(newMode) {
+        state.mode = newMode;
+
+        el.modeTabs.forEach((btn) => {
+          const isActive = btn.dataset.mode === newMode;
+          const checkEl = btn.querySelector('.mode-check');
+          if (checkEl) {
+            checkEl.textContent = isActive ? '■' : '□';
+          }
+          if (isActive) {
+            btn.classList.add('bg-ink', 'text-paper');
+            btn.classList.remove('text-ink/80', 'hover:text-ink');
+          } else {
+            btn.classList.remove('bg-ink', 'text-paper');
+            btn.classList.add('text-ink/80', 'hover:text-ink');
+          }
+        });
+
+        el.panelSimGid.classList.toggle('hidden', newMode !== 'sim-gid');
+        el.panelMojibake.classList.toggle('hidden', newMode !== 'mojibake');
+        el.offsetControlBar.classList.toggle('hidden', newMode === 'mojibake');
+        el.btnSwapDecode.classList.toggle('hidden', newMode === 'mojibake');
+
+        processText();
+      }
+
+      function updateOffset(val, syncInput = true) {
+        const num = parseInt(val, 10);
+        state.offset = Number.isNaN(num) ? 0 : num;
+        if (syncInput) {
+          el.offsetInput.value = state.offset;
+        }
+        el.offsetSlider.value = Math.max(-200, Math.min(200, state.offset));
+        processText();
+      }
+
+      el.modeTabs.forEach((btn) => {
+        btn.addEventListener('click', () => switchMode(btn.dataset.mode));
+      });
+
+      el.simTableType.addEventListener('change', (e) => {
+        state.simTableType = e.target.value;
+        el.seedContainer.classList.toggle('hidden', state.simTableType !== 'custom-seed');
+        processText();
+      });
+
+      el.simSeed.addEventListener('input', (e) => {
+        state.simSeed = parseInt(e.target.value, 10) || 0;
+        processText();
+      });
+
+      el.optKeepAscii.addEventListener('change', (e) => {
+        state.keepAscii = e.target.checked;
+        processText();
+      });
+
+      el.optReverse.addEventListener('change', (e) => {
+        state.reverse = e.target.checked;
+        processText();
+      });
+
+      // 乱码模式按钮切换
+      el.mojiBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.mojiType = btn.dataset.moji;
+          el.mojiBtns.forEach((b) => {
+            const active = b === btn;
+            const checkEl = b.querySelector('.moji-check');
+            if (checkEl) {
+              checkEl.textContent = active ? '■' : '□';
+            }
+            b.classList.toggle('border-ink', active);
+            b.classList.toggle('bg-paper/85', active);
+            b.classList.toggle('border-ink/35', !active);
+            b.classList.toggle('bg-paper/50', !active);
+            const badge = b.querySelector('.moji-badge');
+            if (badge) {
+              badge.classList.toggle('bg-ink', active);
+              badge.classList.toggle('text-paper', active);
+              badge.classList.toggle('bg-rule/80', !active);
+              badge.classList.toggle('text-ink', !active);
+            }
+          });
+          processText();
+        });
+      });
+
+      // 偏移量控制（允许手动键入负号与清空，失焦时自动规整）
+      el.offsetSlider.addEventListener('input', (e) => updateOffset(e.target.value, true));
+      el.offsetInput.addEventListener('input', (e) => {
+        const raw = e.target.value.trim();
+        if (raw === '' || raw === '-') return;
+        updateOffset(raw, false);
+      });
+      el.offsetInput.addEventListener('blur', () => {
+        updateOffset(el.offsetInput.value, true);
+      });
+      el.btnStepMinus.addEventListener('click', () => updateOffset(state.offset - 1));
+      el.btnStepPlus.addEventListener('click', () => updateOffset(state.offset + 1));
+      el.btnRandomOffset.addEventListener('click', () => {
+        let r = 0;
+        while (r === 0) {
+          r = Math.floor(Math.random() * 401) - 200;
+        }
+        updateOffset(r);
+      });
+
+      // 文本输入与快捷操作
+      el.inputText.addEventListener('input', processText);
+
+      if (el.scrambleTitle) {
+        el.scrambleTitle.addEventListener('click', runTitleScramble);
+      }
+
+      el.btnClear.addEventListener('click', () => {
+        el.inputText.value = '';
+        processText();
+        el.inputText.focus();
+      });
+
+      el.btnCopy.addEventListener('click', () => {
+        copyToClipboard(el.outputText.value);
+      });
+
+      el.btnSwapDecode.addEventListener('click', () => {
+        const currentOut = el.outputText.value;
+        if (!currentOut) return;
+        el.inputText.value = currentOut;
+        state.reverse = !state.reverse;
+        el.optReverse.checked = state.reverse;
+        processText();
+        showToast('已将印样放回原稿并切换反向校对', 'info');
+      });
+
+      el.optInspectorChangedOnly.addEventListener('change', (e) => {
+        state.inspectorChangedOnly = e.target.checked;
+        processText();
+      });
+
+      // 原理弹窗
+      function toggleHelp(show) {
+        if (!el.helpModal) return;
+        el.helpModal.classList.toggle('hidden', !show);
+        el.helpModal.classList.toggle('flex', show);
+      }
+      if (el.btnHelp) {
+        el.btnHelp.addEventListener('click', () => toggleHelp(true));
+      }
+      if (el.btnCloseHelp) {
+        el.btnCloseHelp.addEventListener('click', () => toggleHelp(false));
+      }
+      if (el.btnOkHelp) {
+        el.btnOkHelp.addEventListener('click', () => toggleHelp(false));
+      }
+      if (el.helpModal) {
+        el.helpModal.addEventListener('click', (e) => {
+          if (e.target === el.helpModal) toggleHelp(false);
+        });
+      }
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && el.helpModal && !el.helpModal.classList.contains('hidden')) {
+          toggleHelp(false);
+        }
+      });
+
+      // 初始化与窗口尺寸防抖重绘
+      let resizeTimer = null;
+      renderBackgroundGarble();
+      setInterval(triggerBackgroundScramble, 4000);
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(renderBackgroundGarble, 200);
+      });
+      runTitleScramble();
+      processText();
+    })();
+  </script>
+</body>
+</html>
